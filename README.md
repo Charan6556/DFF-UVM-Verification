@@ -1,54 +1,99 @@
+<div align="center">
+
 # D Flip-Flop Verification Using UVM
 
-This project implements a complete introductory UVM testbench for a synchronous, active-high-reset D flip-flop. It demonstrates the standard UVM transaction flow from stimulus generation through DUT observation while keeping the design small enough to make the architecture easy to study.
+### A complete introductory UVM environment for a synchronous D flip-flop
 
-## Verification scope
+![SystemVerilog](https://img.shields.io/badge/SystemVerilog-RTL%20%2B%20Testbench-2F74C0?style=for-the-badge)
+![UVM](https://img.shields.io/badge/UVM-1.2-8A2BE2?style=for-the-badge)
+![Simulator](https://img.shields.io/badge/Simulator-Synopsys%20VCS-EF3E36?style=for-the-badge)
+![Status](https://img.shields.io/badge/Simulation-Clean-success?style=for-the-badge)
 
-- Constrained-random `d` stimulus
-- UVM sequence, sequencer, driver, monitor, agent, environment, test, and scoreboard structure
-- Virtual-interface distribution with `uvm_config_db`
-- Sequencer-to-driver transaction handshake
-- Monitor-to-scoreboard analysis connection
-- UVM factory registration and factory-based construction
-- Phase objections and topology printing
-- VCD waveform generation
+Constrained-random stimulus • Factory-based construction • TLM communication • Waveform validation
 
-The scoreboard in this learning version receives and stores monitor transactions but does **not** compare expected and actual values. Functional behavior is therefore demonstrated through waveform inspection, while the simulation report demonstrates clean UVM execution.
+</div>
 
-## Architecture
+---
+
+## Overview
+
+This project verifies a positive-edge-triggered D flip-flop using a complete UVM testbench. Although the DUT is intentionally small, the environment demonstrates the same component structure and transaction flow used in larger verification projects.
+
+| DUT input | DUT output | Reset | Validation |
+|:---:|:---:|:---:|:---:|
+| `d` | `q` | Synchronous, active high | Waveform inspection |
+
+> **Verification scope:** The recorded run demonstrates clean UVM execution and waveform-validated DFF behavior. The scoreboard receives transactions but does not yet perform expected-versus-actual comparisons.
+
+## DFF functionality
+
+At every rising edge of `clk`, the output is cleared when reset is asserted; otherwise, it captures `d`.
+
+```systemverilog
+always_ff @(posedge clk) begin
+  if (rst)
+    q <= 1'b0;
+  else
+    q <= d;
+end
+```
+
+```text
+Rising clock edge
+       │
+       ├── rst = 1  ──►  q = 0
+       │
+       └── rst = 0  ──►  q = d
+```
+
+## UVM verification architecture
 
 ```mermaid
-flowchart TD
+flowchart TB
     Test["dff_test"] --> Env["dff_env"]
     Env --> Agent["dff_agent"]
     Env --> Scoreboard["dff_scoreboard"]
-    Agent --> Sequencer["dff_sequencer"]
+
+    Sequence["dff_sequence"] --> Sequencer["dff_sequencer"]
+    Agent --> Sequencer
     Agent --> Driver["dff_driver"]
     Agent --> Monitor["dff_monitor"]
-    Sequence["dff_sequence"] --> Sequencer
-    Sequencer -->|"sequence item"| Driver
-    Driver -->|"virtual interface"| DUT["DFF DUT"]
-    DUT -->|"sampled signals"| Monitor
-    Monitor -->|"analysis port"| Scoreboard
+
+    Sequencer -->|"dff_seq_item"| Driver
+    Driver -->|"drives d and rst"| Interface["virtual dff_intf"]
+    Interface --> DUT["D Flip-Flop DUT"]
+    DUT -->|"q"| Interface
+    Interface -->|"samples d, rst and q"| Monitor
+    Monitor -->|"analysis_port.write(tx)"| Scoreboard
 ```
 
-## DFF behavior
-
-At each rising clock edge:
-
-```systemverilog
-if (rst)
-  q <= 1'b0;
-else
-  q <= d;
-```
-
-The driver applies `d` and `rst` on the falling clock edge, giving the DUT stable inputs before the following rising edge.
-
-## Project structure
+### Transaction flow
 
 ```text
-.
+Sequence → Sequencer → Driver → Interface → DUT
+                                          │
+Scoreboard ← Analysis Port ← Monitor ←─────┘
+```
+
+## Concepts demonstrated
+
+- `uvm_sequence_item` transaction modeling
+- Parameterized sequence, sequencer, and driver
+- Sequence-item request handshake
+- Virtual-interface sharing through `uvm_config_db`
+- Factory registration and `type_id::create()`
+- Driver operation on the falling edge for stable DUT inputs
+- Continuous monitor sampling
+- Analysis-port connection from monitor to scoreboard
+- UVM build, connect, elaboration, and run phases
+- Run-phase objection control
+- Testbench topology printing
+- VCD waveform generation
+
+## Repository structure
+
+```text
+DFF-UVM-Verification/
 ├── README.md
 ├── results/
 │   ├── dff_waveform.png
@@ -70,46 +115,55 @@ The driver applies `d` and `rst` on the falling clock edge, giving the DUT stabl
     └── testbench.sv
 ```
 
-## Running the project
+## Simulation results
 
-The project was run with Synopsys VCS and UVM 1.2 on EDA Playground.
+### Waveform-validated behavior
 
-1. Add `src/design.sv` as the design source.
-2. Add the remaining files or use `src/testbench.sv`, which includes the UVM testbench classes.
-3. Select SystemVerilog, Synopsys VCS, and UVM 1.2.
-4. Enable waveform generation and run the simulation.
-5. Open `dump.vcd` in EPWave to inspect `clk`, `rst`, `d`, and `q`.
-
-## Results
-
-### UVM topology
-
-The topology confirms creation of the test, environment, active agent, sequencer, driver, monitor, and scoreboard.
-
-![UVM topology](results/uvm_topology.png)
-
-### Simulation execution
-
-Ten sequence items are processed and the run phase completes at 100 ns.
-
-![Simulation execution](results/simulation_execution.png)
-
-### UVM report summary
-
-The recorded run completed with zero UVM warnings, errors, and fatals.
-
-![UVM report summary](results/simulation_summary.png)
-
-### Waveform-validated functionality
-
-The waveform shows `q` capturing the applied `d` value on rising clock edges. Reset remains deasserted during this recorded run.
+The waveform shows `d` being driven before the rising edge and `q` capturing that value on the active clock edge. Reset remains deasserted in this recorded run.
 
 ![DFF waveform](results/dff_waveform.png)
 
-## Current limitations
+### UVM topology
 
-- The scoreboard stores observed transactions but does not implement a reference-model comparison.
-- The recorded stimulus run does not assert reset.
-- Functional confirmation for this version is based on waveform inspection.
+The generated topology confirms the complete hierarchy: test, environment, active agent, driver, sequencer, monitor, and scoreboard.
 
-These limitations are stated explicitly so the repository accurately represents the implemented verification behavior.
+![UVM topology](results/uvm_topology.png)
+
+### Execution and report summary
+
+| Simulation execution | UVM report summary |
+|---|---|
+| ![Simulation execution](results/simulation_execution.png) | ![UVM report summary](results/simulation_summary.png) |
+
+The recorded simulation processed ten sequence items, ended normally at **100 ns**, and reported:
+
+| Severity | Count |
+|:---|---:|
+| `UVM_WARNING` | **0** |
+| `UVM_ERROR` | **0** |
+| `UVM_FATAL` | **0** |
+
+## Running on EDA Playground
+
+1. Select **SystemVerilog** as the language.
+2. Select **Synopsys VCS** with **UVM 1.2**.
+3. Add `src/design.sv` as the design source.
+4. Add the remaining files; `src/testbench.sv` includes the UVM class files.
+5. Enable waveform generation and run the simulation.
+6. Open `dump.vcd` in EPWave and display `clk`, `rst`, `d`, and `q`.
+
+## Current limitations and next steps
+
+| Current implementation | Planned improvement |
+|---|---|
+| Scoreboard stores monitored transactions | Add cycle-accurate expected/actual comparison |
+| Recorded run keeps reset deasserted | Add dedicated reset sequences and tests |
+| Functional behavior checked visually | Add assertions and automated pass/fail reporting |
+
+---
+
+<div align="center">
+
+**Built as a hands-on introduction to reusable UVM verification architecture.**
+
+</div>
