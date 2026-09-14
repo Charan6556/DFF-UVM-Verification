@@ -1,0 +1,18 @@
+# Simulator outputs
+csrc/
+simv
+simv.daidir/
+*.vcd
+*.vpd
+*.log
+*.key
+*.db
+*.o
+*.so
+*.a
+*.zip
+
+# Editor and operating-system files
+.DS_Store
+.vscode/
+.idea/
